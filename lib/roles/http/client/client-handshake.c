@@ -950,7 +950,7 @@ lws_client_reset(struct lws **pwsi, int ssl, const char *address, int port,
 	 * we are going to detach and reattch
 	 */
 
-	size += strlen(address) + 1 + strlen(host) + 1;
+	size += strlen(path) + 1 + strlen(address) + 1 + strlen(host) + 1 + 1;
 
 	p = stash = lws_malloc(size, __func__);
 	if (!stash)
@@ -969,6 +969,9 @@ lws_client_reset(struct lws **pwsi, int ssl, const char *address, int port,
 	p += strlen(address) + 1;
 	memcpy(p, host, strlen(host) + 1);
 	host = p;
+	p += strlen(host) + 1;
+	memcpy(p, path, strlen(path) + 1);
+	path = p;
 
 	if (!port) {
 		port = 443;
@@ -1011,12 +1014,15 @@ lws_client_reset(struct lws **pwsi, int ssl, const char *address, int port,
 				wsi->role_ops->protocol_unbind_cb[
 				       !!lwsi_role_server(wsi)],
 				       wsi->user_space, (void *)__func__, 0);
+
 		wsi->protocol_bind_balance = 0;
 	}
 
 	wsi->desc.sockfd = LWS_SOCK_INVALID;
 	lws_role_transition(wsi, LWSIFR_CLIENT, LRS_UNCONNECTED, &role_ops_h1);
 //	wsi->protocol = NULL;
+	if (wsi->protocol)
+		lws_bind_protocol(wsi, wsi->protocol, "client_reset");
 	wsi->pending_timeout = NO_PENDING_TIMEOUT;
 	wsi->c_port = port;
 	wsi->hdr_parsing_completed = 0;
@@ -1041,7 +1047,7 @@ lws_client_reset(struct lws **pwsi, int ssl, const char *address, int port,
 	}
 
 	stash[0] = '/';
-	lws_strncpy(&stash[1], path, size - 1);
+	memmove(&stash[1], path, size - 1 < strlen(path) + 1 ? size - 1 : strlen(path) + 1);
 	if (lws_hdr_simple_create(wsi, _WSI_TOKEN_CLIENT_URI, stash))
 		goto bail;
 
